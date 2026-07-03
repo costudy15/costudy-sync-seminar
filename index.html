@@ -233,6 +233,36 @@ section{margin-top:64px}
 .formbox.closed form{display:none}
 .formbox.closed .closedbox{display:block}
 
+/* ── 신청 취소 ── */
+.cancelwrap{margin-top:14px;text-align:center}
+.cancel-toggle{
+  background:none;border:none;cursor:pointer;
+  font-family:'IBM Plex Sans KR',sans-serif;
+  font-size:13px;color:var(--muted);
+  text-decoration:underline;text-underline-offset:3px;
+}
+.cancel-toggle:hover{color:var(--red)}
+.cancelbox{
+  display:none;margin-top:14px;text-align:left;
+  border:1.5px dashed var(--muted);background:var(--white);
+  padding:24px 26px;
+}
+.cancelbox.show{display:block}
+.cancelbox .chead{
+  font-family:'Noto Serif KR',serif;font-weight:700;font-size:16px;
+  margin-bottom:4px;
+}
+.cancelbox .csub{font-size:13px;color:var(--muted);margin-bottom:18px}
+.btn-cancel{
+  width:100%;margin-top:6px;padding:13px;
+  background:var(--white);color:var(--red);
+  border:1.5px solid var(--red);font-size:14px;font-weight:600;
+  letter-spacing:.1em;font-family:'IBM Plex Sans KR',sans-serif;cursor:pointer;
+  transition:all .2s;
+}
+.btn-cancel:hover{background:var(--red);color:var(--white)}
+.btn-cancel:disabled{border-color:var(--muted);color:var(--muted);background:var(--white);cursor:not-allowed}
+
 /* ── 링크 ── */
 .links{display:grid;gap:12px}
 .linkcard{
@@ -295,7 +325,7 @@ footer .admin:hover{color:var(--muted)}
 
   <!-- 표지 -->
   <div class="hero">
-    <div class="badge-hol">초청형</div>
+    <div class="badge-hol">초청장</div>
     <div class="eyebrow">부산 코스터디수학학원 × 수학비서</div>
     <h1>전국 Sync 모의고사<br>오프라인 설명회</h1>
     <p class="sub">고3 파이널, 마지막 100일을 설계하는 자리</p>
@@ -330,7 +360,7 @@ footer .admin:hover{color:var(--muted)}
         <div class="v">20명<small>선착순 마감 · 비공개</small></div>
       </div>
     </div>
-    <p class="notice">신청 후 참석이 어려워지시면, 대기 중인 다른 원장님을 위해 카카오톡 채널로 미리 알려주시면 감사하겠습니다.</p>
+    <p class="notice">신청 후 참석이 어려워지시면, 대기 중인 다른 원장님을 위해 아래 신청 취소 기능으로 미리 취소해 주시면 감사하겠습니다.</p>
 
     <!-- OMR 좌석 현황 -->
     <div class="omr" id="omrBox">
@@ -417,7 +447,26 @@ footer .admin:hover{color:var(--muted)}
       </form>
       <div class="closedbox">
         <div class="bigstamp">접수 마감</div>
-        <p>정원 20명이 모두 채워졌습니다.<br>다음 설명회 소식은 카카오톡 채널에서 가장 먼저 전해드리겠습니다.</p>
+        <p>정원 20명이 모두 채워졌습니다.<br>취소가 발생하면 접수가 자동으로 다시 열립니다.<br>다음 설명회 소식은 카카오톡 채널에서 가장 먼저 전해드리겠습니다.</p>
+      </div>
+    </div>
+
+    <!-- 신청 취소 -->
+    <div class="cancelwrap">
+      <button class="cancel-toggle" type="button" onclick="toggleCancel()">이미 신청하셨나요? 참석이 어려워지셨다면 여기서 취소해 주세요</button>
+      <div class="cancelbox" id="cancelBox">
+        <div class="chead">신청 취소</div>
+        <div class="csub">신청 시 입력하신 성함과 연락처가 일치하면 취소됩니다. 비워주신 좌석은 대기 중인 다른 원장님께 돌아갑니다.</div>
+        <div class="field">
+          <label for="cName">원장님 성함</label>
+          <input id="cName" type="text" placeholder="신청 시 입력한 성함" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="cPhone">연락처</label>
+          <input id="cPhone" type="tel" placeholder="신청 시 입력한 연락처" autocomplete="tel">
+        </div>
+        <button class="btn-cancel" id="cancelBtn" type="button" onclick="submitCancel()">신청 취소하기</button>
+        <div class="form-msg" id="cancelMsg"></div>
       </div>
     </div>
   </section>
@@ -564,6 +613,47 @@ async function toggleAdmin(){
     box.classList.add('show');
   }catch(e){
     alert('명단을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  }
+}
+
+function toggleCancel(){
+  document.getElementById('cancelBox').classList.toggle('show');
+}
+
+function cmsg(text, type){
+  const m = document.getElementById('cancelMsg');
+  m.textContent = text;
+  m.className = 'form-msg ' + (type||'');
+}
+
+async function submitCancel(){
+  const name = document.getElementById('cName').value.trim();
+  const phone = document.getElementById('cPhone').value.trim();
+
+  if(!name || !phone){
+    cmsg('성함과 연락처를 모두 입력해 주세요.', 'err'); return;
+  }
+  if(!confirm(`${name} 원장님의 신청을 취소할까요?`)) return;
+
+  const btn = document.getElementById('cancelBtn');
+  btn.disabled = true; btn.textContent = '취소 처리 중…';
+
+  try{
+    const r = await rpc('sync_seminar_cancel', { p_name: name, p_phone: phone });
+    if(r.ok){
+      render(r.count);
+      document.getElementById('cName').value = '';
+      document.getElementById('cPhone').value = '';
+      cmsg('취소가 완료되었습니다. 좌석을 비워주셔서 감사합니다. 다음 기회에 꼭 뵙겠습니다!', 'ok');
+    }else if(r.error === 'not_found'){
+      cmsg('일치하는 신청 내역이 없습니다. 성함과 연락처를 다시 확인해 주세요.', 'err');
+    }else{
+      cmsg('입력 내용을 다시 확인해 주세요.', 'err');
+    }
+  }catch(e){
+    cmsg('일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.', 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = '신청 취소하기';
   }
 }
 
